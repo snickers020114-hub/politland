@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polit Land — панель управления</title>
+<style>
+  :root {
+    --accent:#34d399; --accent-2:#22c55e; --danger:#f87171; --warn:#fbbf24;
+    --text:#e9eefb; --muted:#8d99b3;
+    --card:rgba(255,255,255,.045); --border:rgba(255,255,255,.09);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; font-family:"Segoe UI",system-ui,sans-serif; }
+  body {
+    min-height:100vh; color:var(--text);
+    background:
+      linear-gradient(180deg, rgba(6,9,18,.72), rgba(10,14,26,.9)),
+      radial-gradient(900px 500px at 15% -5%, rgba(52,211,153,.16), transparent),
+      radial-gradient(800px 500px at 90% 10%, rgba(129,140,248,.14), transparent),
+      #0a0e1a;
+  }
+  .wrap { max-width:880px; margin:0 auto; padding:34px 20px 60px; }
+  h1 { font-size:24px; margin-bottom:4px; }
+  h1 span { color:var(--accent); }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:26px; }
+
+  .login-box {
+    max-width:380px; margin:12vh auto 0; background:var(--card);
+    border:1px solid var(--border); border-radius:18px; padding:28px;
+    backdrop-filter:blur(14px);
+  }
+  .login-box h2 { font-size:17px; margin-bottom:14px; }
+  input[type=password], input[type=text] {
+    width:100%; background:rgba(0,0,0,.35); border:1px solid var(--border);
+    border-radius:10px; color:var(--text); font-size:14px; padding:11px 14px; outline:none;
+  }
+  input:focus { border-color:rgba(52,211,153,.45); }
+  .btn {
+    border:none; border-radius:11px; padding:11px 20px; font-size:13.5px; font-weight:700;
+    cursor:pointer; color:#04130c; background:linear-gradient(135deg,#34d399,#10b981);
+  }
+  .btn:hover { filter:brightness(1.08); }
+  .btn.plain {
+    background:rgba(255,255,255,.06); color:var(--text); border:1px solid var(--border); font-weight:600;
+  }
+  .btn.danger { background:rgba(248,113,113,.14); color:#fca5a5; border:1px solid rgba(248,113,113,.3); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:flex; gap:10px; align-items:center; }
+
+  .card {
+    background:var(--card); border:1px solid var(--border); border-radius:18px;
+    padding:20px 22px; margin-bottom:18px; backdrop-filter:blur(14px);
+  }
+  .card h2 { font-size:16px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; }
+  .card .hint { color:var(--muted); font-size:12.5px; line-height:1.5; margin-bottom:14px; }
+
+  .dropzone {
+    border:1px dashed var(--border); border-radius:12px; padding:18px; text-align:center;
+    color:var(--muted); font-size:13px; cursor:pointer; transition:.15s; margin-bottom:12px;
+  }
+  .dropzone.hover { border-color:var(--accent); color:var(--accent); background:rgba(52,211,153,.05); }
+  .bar { height:7px; border-radius:99px; background:rgba(0,0,0,.4); overflow:hidden; margin-top:10px; }
+  .bar i { display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--accent),var(--accent-2)); transition:width .2s; }
+  .status { font-size:12.5px; color:var(--muted); margin-top:8px; min-height:16px; white-space:pre-wrap; }
+  .status.ok { color:var(--accent); } .status.err { color:var(--danger); }
+
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--muted); font-weight:600; font-size:11.5px; text-transform:uppercase;
+       letter-spacing:.06em; padding:8px 6px; border-bottom:1px solid var(--border); }
+  td { padding:7px 6px; border-bottom:1px solid rgba(255,255,255,.04); }
+  td.name { max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  td.sz, td.dt { color:var(--muted); white-space:nowrap; }
+  .del {
+    border:none; background:rgba(248,113,113,.1); color:#fca5a5; border:1px solid rgba(248,113,113,.25);
+    border-radius:8px; padding:4px 10px; font-size:12px; cursor:pointer;
+  }
+  .listbox { max-height:340px; overflow:auto; }
+  .mono { font-family:Consolas,monospace; font-size:12px; color:var(--muted); word-break:break-all; }
+  .kv { font-size:13.5px; margin-bottom:8px; }
+  .kv b { color:var(--text); } .kv span { color:var(--muted); }
+  #toast {
+    position:fixed; top:18px; right:18px; z-index:50; display:flex; flex-direction:column; gap:8px;
+  }
+  #toast div {
+    background:rgba(20,26,42,.95); border:1px solid var(--border); border-left:3px solid var(--accent);
+    padding:11px 15px; border-radius:10px; font-size:13px; animation:tin .2s ease;
+  }
+  #toast div.e { border-left-color:var(--danger); }
+  @keyframes tin { from{opacity:0; transform:translateX(16px);} to{opacity:1;} }
+  .hidden { display:none !important; }
+
+  .modal-overlay {
+    position:fixed; inset:0; z-index:100; background:rgba(4,6,12,.65);
+    display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px);
+  }
+  .modal-box {
+    width:440px; max-width:calc(100vw - 40px); background:#121a2b; border:1px solid var(--border);
+    border-radius:16px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,.6);
+  }
+  .modal-box h3 { font-size:16px; margin-bottom:12px; }
+  .fld-label { display:block; font-size:11.5px; color:var(--muted); text-transform:uppercase;
+       letter-spacing:.05em; margin-bottom:6px; }
+
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<div class="login-box" id="loginView">
+  <h2>Панель управления Polit Land</h2>
+  <input type="password" id="pass" placeholder="Пароль администратора" autocomplete="off">
+  <div class="status err" id="loginErr"></div>
+  <div style="margin-top:12px"><button class="btn" id="btnLogin">Войти</button></div>
+</div>
+
+<div class="wrap hidden" id="panelView">
+  <h1><span>Polit Land</span> · управление</h1>
+  <div class="sub">Загрузка модов и сборок лаунчера. Изменения клиенты получают автоматически.</div>
+
+  <div class="card">
+    <h2>Моды <button class="btn plain" id="btnRefresh">Обновить</button></h2>
+    <div class="hint" id="modsHint">…</div>
+    <div class="dropzone" id="modDrop">Перетащи сюда .jar файлы или нажми, чтобы выбрать<br>
+      <small>Они сразу появятся у всех игроков перед запуском игры</small></div>
+    <input type="file" id="modFile" accept=".jar" multiple class="hidden">
+    <div class="bar hidden" id="modBarWrap"><i id="modBar"></i></div>
+    <div class="status" id="modStatus"></div>
+    <div class="listbox"><table>
+      <thead><tr><th>Файл</th><th>Размер</th><th>Изменён</th><th></th></tr></thead>
+      <tbody id="modRows"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h2>Файлы сборки <span id="packRev" style="font-weight:normal"></span></h2>
+    <div class="hint">Остальные файлы клиента: конфиги, ресурспаки, шейдеры и т.п. Моды — в карточке выше.
+      Игроки получат их перед следующим запуском игры. Конфиги перезаписываются, только если игрок
+      сам их не менял; ресурспаки и шейдеры добавляются к уже установленным.</div>
+    <div class="row" style="margin-top:12px; align-items:center">
+      <label class="fld-label" for="packGroup" style="margin:0">Папка:</label>
+      <select id="packGroup"></select>
+    </div>
+    <div class="dropzone" id="packDrop" style="margin-top:10px">Перетащи сюда файлы или нажми, чтобы выбрать<br>
+      <small>Подпапки сохраняются: из выбранной папки путь кладётся как есть, начиная с её содержимого</small></div>
+    <input type="file" id="packFile" multiple class="hidden">
+    <div class="bar hidden" id="packBarWrap"><i id="packBar"></i></div>
+    <div class="status" id="packStatus"></div>
+    <div class="listbox"><table>
+      <thead><tr><th>Файл</th><th>Размер</th><th>Изменён</th><th></th></tr></thead>
+      <tbody id="packRows"></tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <h2>Сборка лаунчера</h2>
+    <div class="hint">Опубликованный app.asar — лаунчеры игроков сверяют его sha256 при запуске
+      и обновляются сами, показывая название версии, которое ты укажешь при публикации.</div>
+    <div class="kv" id="launcherInfo">…</div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="btnRebuild">Собрать обновление…</button>
+      <button class="btn plain" id="btnPublish">Загрузить готовый app.asar…</button>
+      <button class="btn plain" id="btnRename">Переименовать версию</button>
+      <button class="btn danger" id="btnRollback">Откатить на резервную копию</button>
+    </div>
+    <div class="bar hidden" id="lnBarWrap"><i id="lnBar"></i></div>
+    <div class="status" id="lnStatus"></div>
+  </div>
+
+  <div class="card hidden" id="mcCard">
+    <h2>Minecraft-сервер <span id="mcStatusBadge" style="font-weight:normal"></span></h2>
+    <div class="hint">Моды сервера лежат отдельно от клиентских. Контентные моды должны совпадать
+      с обеих сторон — если добавил мод игрокам, загрузи его же сюда и перезапусти сервер.
+      Чисто серверные (права, экономика) дублировать не нужно.</div>
+    <div class="kv" id="mcInfo">…</div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn" id="btnMcStart">Запустить</button>
+      <button class="btn" id="btnMcRestart">Перезапустить</button>
+      <button class="btn danger" id="btnMcStop">Остановить</button>
+    </div>
+    <div class="status" id="mcPowerStatus"></div>
+    <div class="dropzone" id="mcDrop" style="margin-top:10px">Перетащи .jar или нажми — файлы лягут в minecraft-server\mods<br>
+      <small>Изменения модов вступят в силу после перезапуска сервера</small></div>
+    <input type="file" id="mcFile" accept=".jar" multiple class="hidden">
+    <div class="bar hidden" id="mcBarWrap"><i id="mcBar"></i></div>
+    <div class="status" id="mcModStatus"></div>
+    <div class="listbox"><table>
+      <thead><tr><th>Файл</th><th>Размер</th><th>Изменён</th><th></th></tr></thead>
+      <tbody id="mcRows"></tbody>
+    </table></div>
+  </div>
+
+  <!-- Диалог публикации / сборки / переименования версии -->
+  <div class="modal-overlay hidden" id="pubOverlay">
+    <div class="modal-box">
+      <h3 id="pubTitle">Публикация обновления</h3>
+      <div class="status" id="pubHint"></div>
+      <label class="fld-label">Название версии (что нового) — увидят игроки при обновлении</label>
+      <input type="text" id="pubName" placeholder="Например: Добавлены скины и фикс входа" maxlength="200" autocomplete="off">
+      <div id="pubFileBlock">
+        <div class="dropzone" id="pubDrop" style="margin-top:14px">Выбери или перетащи сюда файл app.asar</div>
+        <div class="status" id="pubFileName"></div>
+      </div>
+      <div class="row" style="margin-top:18px; justify-content:flex-end">
+        <button class="btn plain" id="pubCancel">Отмена</button>
+        <button class="btn" id="pubGo" disabled>Опубликовать</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let TOKEN = localStorage.getItem("pl_admin_token") || "";
+
+function toast(msg, isErr) {
+  const d = document.createElement("div");
+  if (isErr) d.className = "e";
+  d.textContent = msg;
+  $("toast").appendChild(d);
+  setTimeout(() => d.remove(), 5000);
+}
+function fmtSize(n) {
+  if (!n && n !== 0) return "—";
+  if (n > 1048576) return (n / 1048576).toFixed(1) + " МБ";
+  if (n > 1024) return (n / 1024).toFixed(0) + " КБ";
+  return n + " Б";
+}
+function fmtDate(unix) {
+  if (!unix) return "—";
+  return new Date(unix * 1000).toLocaleString("ru-RU", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" });
+}
+
+async function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign({}, opts.headers || {}, { "X-Admin-Token": TOKEN });
+  const r = await fetch(path, opts);
+  let body = null;
+  try { body = await r.json(); } catch (e) {}
+  if (!r.ok || !body || body.ok === false) {
+    throw new Error((body && (body.error || body.errorMessage)) || ("HTTP " + r.status));
+  }
+  return body;
+}
+
+function uploadWithProgress(url, formData, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("X-Admin-Token", TOKEN);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded * 100 / e.total)); };
+    xhr.onload = () => {
+      let b = null;
+      try { b = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status === 200 && b && b.ok !== false) resolve(b);
+      else reject(new Error((b && (b.error || b.errorMessage)) || ("HTTP " + xhr.status)));
+    };
+    xhr.onerror = () => reject(new Error("Ошибка сети"));
+    xhr.send(formData);
+  });
+}
+
+async function loadState() {
+  const st = await api("/api/admin/state");
+  $("modsHint").textContent = "На сервере модов: " + st.mods_count + ". Клиенты докачают новые и уберут удалённые при следующем запуске игры.";
+  const tb = $("modRows");
+  tb.innerHTML = "";
+  for (const m of st.mods) {
+    const tr = document.createElement("tr");
+    const tdN = document.createElement("td"); tdN.className = "name"; tdN.textContent = m.name; tdN.title = m.name;
+    const tdS = document.createElement("td"); tdS.className = "sz"; tdS.textContent = fmtSize(m.size);
+    const tdD = document.createElement("td"); tdD.className = "dt"; tdD.textContent = fmtDate(m.mtime);
+    const tdX = document.createElement("td");
+    const btn = document.createElement("button"); btn.className = "del"; btn.textContent = "Удалить";
+    btn.onclick = async () => {
+      if (!confirm("Удалить мод " + m.name + "? У игроков он будет убран при следующем запуске.")) return;
+      try { await api("/api/admin/mods/delete", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({name:m.name}) }); toast("Удалён: " + m.name); loadState(); }
+      catch (e) { toast(e.message, true); }
+    };
+    tdX.appendChild(btn);
+    tr.appendChild(tdN); tr.appendChild(tdS); tr.appendChild(tdD); tr.appendChild(tdX);
+    tb.appendChild(tr);
+  }
+  const li = $("launcherInfo");
+  if (st.launcher) {
+    li.innerHTML =
+      '<span>Версия:</span> <b>' + (st.launcher.name ? escapeHtml(st.launcher.name) : "без названия") + '</b><br>' +
+      '<span>Опубликована:</span> <b>' + fmtDate(st.launcher.mtime) + '</b> · ' +
+      '<span>Размер:</span> <b>' + fmtSize(st.launcher.size) + '</b><br>' +
+      '<span>sha256:</span> <span class="mono">' + st.launcher.sha256.slice(0, 24) + '…</span><br>' +
+      '<span>Резервная копия:</span> <b>' + (st.backup ? "есть" : "нет") + '</b>';
+    $("btnRollback").disabled = !st.backup;
+  } else {
+    li.innerHTML = "<span>Сборка ещё не публиковалась.</span>";
+    $("btnRollback").disabled = true;
+  }
+  PACK_STATE = Array.isArray(st.pack) ? st.pack : [];
+  const revEl = $("packRev");
+  revEl.textContent = st.pack_revision ? "(состав от " + st.pack_revision.slice(0, 8) + ")" : "";
+  renderPackFiles();
+  renderServer(st.server);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function setupDrop(zoneId, fileId, handler) {
+  const zone = $(zoneId), file = $(fileId);
+  zone.onclick = () => file.click();
+  file.onchange = () => { if (file.files.length) handler(Array.from(file.files)); file.value = ""; };
+  ["dragover", "dragenter"].forEach(ev => zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add("hover"); }));
+  ["dragleave", "drop"].forEach(ev => zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove("hover"); }));
+  zone.addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files.length) handler(Array.from(e.dataTransfer.files)); });
+}
+
+async function uploadMods(files) {
+  const fd = new FormData();
+  files.forEach(f => fd.append("files", f, f.name));
+  $("modBarWrap").classList.remove("hidden");
+  $("modStatus").className = "status"; $("modStatus").textContent = "Загрузка…";
+  try {
+    const res = await uploadWithProgress("/api/admin/mods/upload", fd, p => { $("modBar").style.width = p + "%"; });
+    let msg = "Добавлено: " + res.saved.length;
+    if (res.errors.length) msg += ", ошибок: " + res.errors.length + " (" + res.errors.map(x => x.file + ": " + x.error).join("; ") + ")";
+    $("modStatus").className = "status ok"; $("modStatus").textContent = msg;
+    toast(msg, res.errors.length > 0);
+    loadState();
+  } catch (e) {
+    $("modStatus").className = "status err"; $("modStatus").textContent = e.message;
+    toast(e.message, true);
+  }
+  setTimeout(() => { $("modBar").style.width = "0%"; $("modBarWrap").classList.add("hidden"); }, 1500);
+}
+
+$("btnRefresh").onclick = () => loadState().then(() => toast("Список обновлён")).catch(e => toast(e.message, true));
+setupDrop("modDrop", "modFile", uploadMods);
+
+/* ---- Файлы сборки: конфиги, ресурспаки, шейдеры и прочее ---- */
+
+const PACK_GROUPS = [
+  { name: "config",         label: "config — конфиги (не трогаем изменённые игроком)" },
+  { name: "defaultconfigs", label: "defaultconfigs — дефолтные конфиги модов" },
+  { name: "resourcepacks",  label: "resourcepacks — ресурспаки (добавляются)" },
+  { name: "shaderpacks",    label: "shaderpacks — шейдеры (добавляются)" },
+  { name: "kubejs",         label: "kubejs — скрипты и рецепты" },
+  { name: "mods",           label: "mods — моды (строго как на сервере)" }
+];
+let PACK_STATE = []; // из /api/admin/state
+
+function packGroupMeta(name) {
+  return PACK_GROUPS.find(g => g.name === name) || { name: name, label: name };
+}
+
+function fillPackGroups() {
+  const sel = $("packGroup");
+  if (sel.options.length) return;
+  for (const g of PACK_GROUPS) {
+    const o = document.createElement("option");
+    o.value = g.name;
+    o.textContent = g.label;
+    sel.appendChild(o);
+  }
+  sel.onchange = renderPackFiles;
+}
+
+function renderPackFiles() {
+  fillPackGroups();
+  const group = $("packGroup").value;
+  const meta = PACK_STATE.find(g => g.name === group);
+  const tb = $("packRows");
+  tb.innerHTML = "";
+  if (!meta || !meta.files.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 4;
+    td.className = "name";
+    td.textContent = "Папка пуста — загрузи файлы выше";
+    tr.appendChild(td);
+    tb.appendChild(tr);
+    return;
+  }
+  for (const f of meta.files) {
+    const tr = document.createElement("tr");
+    const tdN = document.createElement("td"); tdN.className = "name"; tdN.textContent = f.path; tdN.title = f.path;
+    const tdS = document.createElement("td"); tdS.className = "sz"; tdS.textContent = fmtSize(f.size);
+    const tdD = document.createElement("td"); tdD.className = "dt"; tdD.textContent = fmtDate(f.mtime);
+    const tdX = document.createElement("td");
+    const btn = document.createElement("button"); btn.className = "del"; btn.textContent = "Удалить";
+    btn.onclick = async () => {
+      if (!confirm("Убрать " + f.path + " из сборки? У игроков файл удалится при следующем запуске.")) return;
+      try {
+        await api("/api/admin/pack/delete", { method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ group: group, path: f.path }) });
+        toast("Удалён: " + f.path);
+        loadState();
+      } catch (e) { toast(e.message, true); }
+    };
+    tdX.appendChild(btn);
+    tr.appendChild(tdN); tr.appendChild(tdS); tr.appendChild(tdD); tr.appendChild(tdX);
+    tb.appendChild(tr);
+  }
+}
+
+async function uploadPack(files) {
+  const group = $("packGroup").value;
+  if (!files.length) return;
+  const fd = new FormData();
+  fd.append("group", group);
+  let total = 0;
+  for (const f of files) {
+    // у выбранных через «папку» файлов путь вида folder/sub/file — первую
+    // составляющую (имя выбранной папки) отбрасываем, остальное сохраняем
+    let rel = f.webkitRelativePath || f.name;
+    const parts = rel.split("/");
+    if (parts.length > 1) parts.shift();
+    fd.append("files", f, parts.join("/"));
+    total += f.size;
+  }
+  $("packBarWrap").classList.remove("hidden");
+  $("packStatus").className = "status"; $("packStatus").textContent = "Загрузка " + files.length + " файл(ов), " + fmtSize(total) + "…";
+  try {
+    const res = await uploadWithProgress("/api/admin/pack/upload", fd, p => { $("packBar").style.width = p + "%"; });
+    let msg = "Добавлено в " + group + ": " + res.saved.length;
+    if (res.errors.length) msg += ", ошибок: " + res.errors.length + " (" + res.errors.map(x => x.file + ": " + x.error).join("; ") + ")";
+    $("packStatus").className = res.errors.length ? "status" : "status ok"; $("packStatus").textContent = msg;
+    toast(msg, res.errors.length > 0);
+    loadState();
+  } catch (e) {
+    $("packStatus").className = "status err"; $("packStatus").textContent = e.message;
+    toast(e.message, true);
+  }
+  setTimeout(() => { $("packBar").style.width = "0%"; $("packBarWrap").classList.add("hidden"); }, 1500);
+}
+
+fillPackGroups();
+setupDrop("packDrop", "packFile", uploadPack);
+
+/* ---- Локальный Minecraft-сервер: моды + старт/стоп/рестарт ---- */
+
+let MC_STATE = null; // последний state.server — нужен до первой отрисовки карточки
+
+function renderServer(srv) {
+  const card = $("mcCard");
+  if (!card) return;
+  MC_STATE = srv;
+  if (!srv || !srv.enabled) {
+    card.classList.add("hidden");
+    return;
+  }
+  card.classList.remove("hidden");
+  const badge = $("mcStatusBadge");
+  if (srv.running) {
+    badge.innerHTML = '<span style="color:#34d399">● запущен</span>';
+  } else {
+    badge.innerHTML = '<span style="color:#9aa7bd">○ остановлен</span>';
+  }
+  const miss = srv.missing_on_server || [];
+  let info =
+    "Порт: <b>" + escapeHtml(String(srv.port)) + "</b> · " +
+    "online-mode: <b>" + (srv.online_mode ? "вкл (вход только через наш лаунчер)" : "выключен!") + "</b><br>" +
+    "Модов на сервере: <b>" + srv.mods.length + "</b> · у клиентов: <b>" + srv.clients_count + "</b>";
+  if (miss.length) {
+    info += "<br>Есть у клиентов, но нет на сервере: <b>" +
+      escapeHtml(miss.slice(0, 5).join(", ")) + (miss.length > 5 ? " …" : "") + "</b>";
+  }
+  $("mcInfo").innerHTML = info;
+  $("btnMcStart").disabled = srv.running;
+  $("btnMcRestart").disabled = !srv.running;
+  $("btnMcStop").disabled = !srv.running;
+
+  const tb = $("mcRows");
+  tb.innerHTML = "";
+  for (const m of srv.mods) {
+    const tr = document.createElement("tr");
+    const tdN = document.createElement("td"); tdN.className = "name"; tdN.textContent = m.name; tdN.title = m.name;
+    const tdS = document.createElement("td"); tdS.className = "sz"; tdS.textContent = fmtSize(m.size);
+    const tdD = document.createElement("td"); tdD.className = "dt"; tdD.textContent = fmtDate(m.mtime);
+    const tdX = document.createElement("td");
+    const btn = document.createElement("button"); btn.className = "del"; btn.textContent = "Удалить";
+    btn.onclick = async () => {
+      if (!confirm("Убрать " + m.name + " с сервера? Если мод есть у клиентов — они не смогут зайти, пока не уберут его тоже.")) return;
+      try {
+        await api("/api/admin/server/mods/delete", { method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({name: m.name}) });
+        toast("Удалён с сервера: " + m.name);
+        loadState();
+      } catch (e) { toast(e.message, true); }
+    };
+    tdX.appendChild(btn);
+    tr.appendChild(tdN); tr.appendChild(tdS); tr.appendChild(tdD); tr.appendChild(tdX);
+    tb.appendChild(tr);
+  }
+}
+
+async function uploadServerMods(files) {
+  if (!files.length) return;
+  // Работающий сервер держит существующие .jar открытыми — перезаписать их
+  // не выйдет. Предлагаем полный цикл: остановить, залить, запустить.
+  if (MC_STATE && MC_STATE.running) {
+    const go = confirm(
+      "Сервер сейчас запущен — обновить уже установленные моды нельзя.\n\n" +
+      "Остановить сервер, загрузить моды и запустить снова? Игроки будут отключены."
+    );
+    if (!go) return;
+    await uploadServerModsCycle(files);
+    return;
+  }
+  await uploadServerModsPlain(files);
+}
+
+async function waitForServerState(runningExpected, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const st = await api("/api/admin/state");
+      MC_STATE = st.server;
+      if (MC_STATE.running === runningExpected) return true;
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  return false;
+}
+
+async function mcSetPowerStatus(text) {
+  const st = $("mcPowerStatus");
+  st.className = "status";
+  st.textContent = text;
+}
+
+/** Стоп -> загрузка -> старт. Для перезаписи живых модов. */
+async function uploadServerModsCycle(files) {
+  try {
+    mcSetPowerStatus("Останавливаю сервер…");
+    const stopRes = await api("/api/admin/server/power", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({action: "stop"}) });
+    if (!stopRes.ok) { toast(stopRes.message || "Не удалось остановить", true); mcSetPowerStatus(stopRes.message || ""); return; }
+    if (!(await waitForServerState(false, 120000))) {
+      toast("Сервер не остановился за 2 минуты — загрузка отменена", true);
+      mcSetPowerStatus("Сервер не остановился — загрузка отменена");
+      loadState();
+      return;
+    }
+    await uploadServerModsPlain(files);
+    mcSetPowerStatus("Запускаю сервер…");
+    const startRes = await api("/api/admin/server/power", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({action: "start"}) });
+    toast(startRes.message || (startRes.ok ? "Сервер запускается" : "Не удалось запустить"), !startRes.ok);
+  } catch (e) {
+    toast(e.message, true);
+    mcSetPowerStatus("Ошибка: " + e.message);
+  }
+  loadState();
+}
+
+async function uploadServerModsPlain(files) {
+  const fd = new FormData();
+  files.forEach(f => fd.append("files", f, f.name));
+  $("mcBarWrap").classList.remove("hidden");
+  $("mcModStatus").className = "status"; $("mcModStatus").textContent = "Загрузка…";
+  try {
+    const res = await uploadWithProgress("/api/admin/server/mods/upload", fd, p => { $("mcBar").style.width = p + "%"; });
+    let msg = "На сервер добавлено: " + res.saved.length + ". Перезапусти сервер, чтобы моды заработали.";
+    if (res.errors.length) msg += " Ошибки: " + res.errors.map(x => x.file + ": " + x.error).join("; ");
+    $("mcModStatus").className = res.errors.length ? "status" : "status ok"; $("mcModStatus").textContent = msg;
+    toast(msg, res.errors.length > 0);
+    loadState();
+  } catch (e) {
+    $("mcModStatus").className = "status err"; $("mcModStatus").textContent = e.message;
+    toast(e.message, true);
+  }
+  setTimeout(() => { $("mcBar").style.width = "0%"; $("mcBarWrap").classList.add("hidden"); }, 1500);
+}
+
+setupDrop("mcDrop", "mcFile", uploadServerMods);
+
+async function mcPower(action, confirmText) {
+  if (confirmText && !confirm(confirmText)) return;
+  const st = $("mcPowerStatus");
+  st.className = "status";
+  st.textContent = action === "stop" ? "Останавливаю (штатно через RCON)…" :
+    action === "restart" ? "Перезапускаю…" : "Запускаю…";
+  $("btnMcStart").disabled = true; $("btnMcRestart").disabled = true; $("btnMcStop").disabled = true;
+  try {
+    const res = await api("/api/admin/server/power", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({action: action}) });
+    st.className = res.ok ? "status ok" : "status err";
+    st.textContent = res.message || (res.ok ? "Готово" : "Не удалось");
+    toast(res.message || (res.ok ? "Готово" : "Ошибка"), !res.ok);
+  } catch (e) {
+    st.className = "status err"; st.textContent = e.message;
+    toast(e.message, true);
+  }
+  setTimeout(loadState, 4000);
+}
+
+$("btnMcStart").onclick = () => mcPower("start");
+$("btnMcRestart").onclick = () => mcPower("restart", "Перезапустить Minecraft-сервер? Игроки будут отключены.");
+$("btnMcStop").onclick = () => mcPower("stop", "Остановить Minecraft-сервер? Мир сохранится.");
+
+/* ---- Диалог публикации / сборки / переименования версии лаунчера ---- */
+let pubFile = null;
+let pubMode = "publish";
+
+function openPubDialog(mode) {
+  pubFile = null;
+  pubMode = mode;
+  $("pubName").value = "";
+  $("pubFileName").textContent = "";
+  $("pubFileName").className = "status";
+  $("pubHint").textContent = "";
+  $("pubGo").disabled = true;
+  if (mode === "rename") {
+    $("pubTitle").textContent = "Переименовать версию";
+    $("pubFileBlock").classList.add("hidden");
+    $("pubGo").textContent = "Сохранить";
+    api("/api/admin/state").then(st => {
+      $("pubName").value = (st.launcher && st.launcher.name) || "";
+      $("pubGo").disabled = false;
+    }).catch(e => toast(e.message, true));
+  } else if (mode === "rebuild") {
+    $("pubTitle").textContent = "Собрать обновление лаунчера";
+    $("pubFileBlock").classList.add("hidden");
+    $("pubHint").textContent = "Лаунчер будет собран заново из актуальных правок на этом ПК — файл выбирать не нужно.";
+    $("pubGo").textContent = "Собрать и опубликовать";
+    $("pubGo").disabled = false;
+  } else {
+    $("pubTitle").textContent = "Загрузить готовый app.asar";
+    $("pubFileBlock").classList.remove("hidden");
+    $("pubGo").textContent = "Опубликовать";
+  }
+  $("pubOverlay").classList.remove("hidden");
+  setTimeout(() => $("pubName").focus(), 50);
+}
+function closePubDialog() { $("pubOverlay").classList.add("hidden"); }
+
+$("btnRebuild").onclick = () => openPubDialog("rebuild");
+$("btnPublish").onclick = () => openPubDialog("publish");
+$("btnRename").onclick = () => openPubDialog("rename");
+$("pubCancel").onclick = closePubDialog;
+$("pubOverlay").addEventListener("click", (e) => { if (e.target.id === "pubOverlay") closePubDialog(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("pubOverlay").classList.contains("hidden")) closePubDialog(); });
+$("pubName").addEventListener("input", () => { $("pubGo").disabled = false; });
+
+const pubZone = $("pubDrop"), pubPicker = document.createElement("input");
+pubPicker.type = "file"; pubPicker.accept = ".asar"; pubPicker.style.display = "none";
+document.body.appendChild(pubPicker);
+pubZone.onclick = () => pubPicker.click();
+pubPicker.onchange = () => { if (pubPicker.files.length) pickPubFile(pubPicker.files[0]); pubPicker.value = ""; };
+["dragover", "dragenter"].forEach(ev => pubZone.addEventListener(ev, (e) => { e.preventDefault(); pubZone.classList.add("hover"); }));
+["dragleave", "drop"].forEach(ev => pubZone.addEventListener(ev, (e) => { e.preventDefault(); pubZone.classList.remove("hover"); }));
+pubZone.addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files.length) pickPubFile(e.dataTransfer.files[0]); });
+
+function pickPubFile(f) {
+  if (!/\.asar$/i.test(f.name)) { toast("Нужен файл .asar", true); return; }
+  pubFile = f;
+  $("pubFileName").className = "status ok";
+  $("pubFileName").textContent = f.name + " (" + fmtSize(f.size) + ")";
+  $("pubGo").disabled = false;
+}
+
+async function publishNow() {
+  const name = $("pubName").value.trim();
+  if (pubMode === "rename") {
+    try {
+      await api("/api/admin/launcher/name", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ name })
+      });
+      closePubDialog();
+      toast(name ? "Версия переименована: " + name : "Название сброшено");
+      loadState();
+    } catch (e) { toast(e.message, true); }
+    return;
+  }
+  if (pubMode === "rebuild") {
+    $("pubGo").disabled = true;
+    $("lnBarWrap").classList.remove("hidden");
+    $("lnStatus").className = "status"; $("lnStatus").textContent = "Собираю лаунчер…";
+    try {
+      const res = await api("/api/admin/launcher/rebuild", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ name })
+      });
+      closePubDialog();
+      $("lnStatus").className = "status ok";
+      $("lnStatus").textContent = "Готово: " + (res.name ? "«" + res.name + "» — " : "") + "игроки обновятся при следующем запуске.";
+      toast("Обновление собрано и опубликовано");
+      loadState();
+    } catch (e) {
+      $("lnStatus").className = "status err"; $("lnStatus").textContent = e.message;
+      toast("Сборка не удалась: " + e.message, true);
+    }
+    $("pubGo").disabled = false;
+    setTimeout(() => { $("lnBar").style.width = "0%"; $("lnBarWrap").classList.add("hidden"); }, 1500);
+    return;
+  }
+  if (!pubFile) { toast("Сначала выбери файл app.asar", true); return; }
+  const fd = new FormData();
+  fd.append("name", name);
+  fd.append("file", pubFile, pubFile.name);
+  $("pubGo").disabled = true;
+  $("lnBarWrap").classList.remove("hidden");
+  $("lnStatus").className = "status"; $("lnStatus").textContent = "Загрузка…";
+  try {
+    const res = await uploadWithProgress("/api/admin/launcher/upload", fd, p => { $("lnBar").style.width = p + "%"; });
+    closePubDialog();
+    $("lnStatus").className = "status ok";
+    $("lnStatus").textContent = "Опубликовано: " + (res.name ? "«" + res.name + "» — " : "") + "игроки обновятся при следующем запуске.";
+    toast("Обновление опубликовано" + (res.name ? ": " + res.name : ""));
+    loadState();
+  } catch (e) {
+    $("lnStatus").className = "status err"; $("lnStatus").textContent = e.message;
+    toast(e.message, true);
+  }
+  $("pubGo").disabled = false;
+  setTimeout(() => { $("lnBar").style.width = "0%"; $("lnBarWrap").classList.add("hidden"); }, 1500);
+}
+$("pubGo").onclick = publishNow;
+$("pubName").addEventListener("keydown", (e) => { if (e.key === "Enter") publishNow(); });
+$("btnRollback").onclick = async () => {
+  if (!confirm("Вернуть предыдущую сборку лаунчера?")) return;
+  try { await api("/api/admin/launcher/rollback", { method: "POST" }); toast("Откат выполнен"); loadState(); }
+  catch (e) { toast(e.message, true); }
+};
+
+function enterPanel() {
+  $("loginView").classList.add("hidden");
+  $("panelView").classList.remove("hidden");
+  loadState().catch(e => toast(e.message, true));
+}
+function logout() {
+  TOKEN = "";
+  localStorage.removeItem("pl_admin_token");
+  $("panelView").classList.add("hidden");
+  $("loginView").classList.remove("hidden");
+}
+async function doLogin() {
+  const pass = $("pass").value;
+  if (!pass) return;
+  $("btnLogin").disabled = true;
+  $("loginErr").textContent = "";
+  try {
+    const r = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: pass })
+    });
+    const b = await r.json();
+    if (!r.ok || !b.token) throw new Error(b.error || b.errorMessage || ("HTTP " + r.status));
+    TOKEN = b.token;
+    localStorage.setItem("pl_admin_token", TOKEN);
+    enterPanel();
+  } catch (e) {
+    $("loginErr").textContent = e.message.indexOf("ароль") >= 0 ? e.message : "Не удалось войти: " + e.message;
+  }
+  $("btnLogin").disabled = false;
+}
+$("btnLogin").onclick = doLogin;
+$("pass").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+
+if (TOKEN) {
+  fetch("/api/admin/state", { headers: { "X-Admin-Token": TOKEN } })
+    .then(r => { if (r.ok) enterPanel(); else logout(); })
+    .catch(logout);
+}
+</script>
+</body>
+</html>
