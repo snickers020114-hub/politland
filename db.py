@@ -1,12 +1,128 @@
 import hashlib
 import hmac
+import json
+import logging
 import os
 import secrets
 import sqlite3
+import threading
+import urllib.request
 import uuid as uuid_mod
 from datetime import datetime, timezone
 
 import config
+
+log = logging.getLogger("db")
+
+GIST_FILE = "accounts.json"
+
+
+def _bk_cfg():
+    return os.environ.get("GH_TOKEN"), os.environ.get("GH_REPO")
+
+
+def _bk_request(url, data=None, method="GET"):
+    token, _ = _bk_cfg()
+    req = urllib.request.Request(url, method=method)
+    req.add_header("Authorization", "Bearer " + token)
+    req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("User-Agent", "politland-auth")
+    body = None
+    if data is not None:
+        body = json.dumps(data).encode("utf-8")
+        req.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(req, body, timeout=15) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _accounts_payload():
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT nickname, password_hash, uuid, telegram_id, created_at FROM accounts ORDER BY id"
+        ).fetchall()
+        return json.dumps({"accounts": [dict(r) for r in rows]}, ensure_ascii=False)
+    finally:
+        conn.close()
+
+
+def backup_to_gist_async():
+    """Сохраняет все аккаунты в приватный репозиторий — переживает деплои Render."""
+    t = threading.Thread(target=_backup_to_repo, daemon=True)
+    t.start()
+
+
+def _backup_to_repo():
+    try:
+        token, repo = _bk_cfg()
+        if not token or not repo:
+            return
+        content = _accounts_payload()
+        n = len(json.loads(content)["accounts"])
+        path = "https://api.github.com/repos/" + repo + "/contents/" + GIST_FILE
+        sha = None
+        try:
+            sha = _bk_request(path + "?ref=main").get("sha")
+        except Exception:
+            sha = None
+        import base64
+
+        payload = {
+            "message": "accounts backup",
+            "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+        }
+        if sha:
+            payload["sha"] = sha
+        _bk_request(path, payload, method="PUT")
+        log.info("accounts backed up to github (%s accounts)", n)
+    except Exception as e:
+        log.warning("github backup failed: %s", e)
+
+
+def restore_from_gist():
+    """Если база пуста (свежий деплой) — восстанавливает аккаунты из бэкапа."""
+    try:
+        token, repo = _bk_cfg()
+        if not token or not repo:
+            return
+        conn = _connect()
+        try:
+            cnt = conn.execute("SELECT COUNT(*) AS c FROM accounts").fetchone()["c"]
+        finally:
+            conn.close()
+        if cnt:
+            return
+        import base64
+
+        path = "https://api.github.com/repos/" + repo + "/contents/" + GIST_FILE + "?ref=main"
+        f = _bk_request(path)
+        raw = base64.b64decode(f.get("content", "")).decode("utf-8") if f else None
+        if not raw:
+            return
+        accs = json.loads(raw).get("accounts", [])
+        if not accs:
+            return
+        conn = _connect()
+        try:
+            for a in accs:
+                conn.execute(
+                    "INSERT OR IGNORE INTO accounts (nickname, password_hash, uuid, telegram_id, created_at)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (
+                        a.get("nickname"),
+                        a.get("password_hash"),
+                        a.get("uuid"),
+                        a.get("telegram_id"),
+                        a.get("created_at") or _now(),
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        log.info("restored %s accounts from github backup", len(accs))
+    except Exception as e:
+        log.warning("github restore failed: %s", e)
+
 
 PBKDF2_ITERATIONS = 120_000
 
@@ -62,6 +178,38 @@ def init_db():
     )
     conn.commit()
     conn.close()
+    restore_from_gist()
+    migrate_uuids_to_offline()
+
+
+def migrate_uuids_to_offline():
+    """Переводит старые случайные UUID на детерминированные (по нику).
+
+    Нужно один раз для аккаунтов, созданных до перехода на offline_uuid,
+    в том числе для восстановленных из бэкапа со старыми UUID.
+    """
+    conn = _connect()
+    changed = 0
+    try:
+        rows = conn.execute("SELECT id, nickname, uuid FROM accounts").fetchall()
+        for row in rows:
+            want = offline_uuid(row["nickname"])
+            if row["uuid"] == want:
+                continue
+            try:
+                conn.execute("UPDATE accounts SET uuid = ? WHERE id = ?", (want, row["id"]))
+                changed += 1
+            except sqlite3.IntegrityError:
+                log.warning("uuid migration skipped for %s (conflict)", row["nickname"])
+        if changed:
+            conn.commit()
+            log.info("migrated %s account uuid(s) to offline scheme", changed)
+    except Exception as e:
+        log.warning("uuid migration failed: %s", e)
+    finally:
+        conn.close()
+    if changed:
+        backup_to_gist_async()
 
 
 def hash_password(password):
@@ -88,7 +236,9 @@ def create_account(nickname, password, telegram_id=None):
             (nickname, hash_password(password), offline_uuid(nickname), telegram_id, _now()),
         )
         conn.commit()
-        return conn.execute("SELECT * FROM accounts WHERE id = ?", (cur.lastrowid,)).fetchone()
+        row = conn.execute("SELECT * FROM accounts WHERE id = ?", (cur.lastrowid,)).fetchone()
+        backup_to_gist_async()
+        return row
     except sqlite3.IntegrityError:
         return None
     finally:
@@ -147,6 +297,7 @@ def change_password(account_id, new_password):
             (hash_password(new_password), account_id),
         )
         conn.commit()
+        backup_to_gist_async()
     finally:
         conn.close()
 
